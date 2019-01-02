@@ -117,10 +117,12 @@ class PD:
         x_bar = np.mean(x, axis=1)
         f_x = (x_bar[0] - 2)**2 + (x_bar[1] - 0.2)**2
         self.arr_x_k = x
-        print('f(x_K) is', np.sum((x[:, self.num_iterations - 1] - np.array([2, 0.2])) ** 2), ' The optimum is',
-              np.sum((np.array([[0.20523677], [0.2]]) - np.array([[2], [0.2]])) ** 2))
 
         constraint_violation = np.max(self.g_samples(x_bar))
+
+        print('f(x_K) is', np.sum((x[:, self.num_iterations - 1] - np.array([2, 0.2])) ** 2), 'f(x_bar_K) is ', f_x,
+              ' The optimum is', np.sum((np.array([[0.20523677], [0.2]]) - np.array([[2], [0.2]])) ** 2),
+              ' Constraint violation is', constraint_violation)
 
         return f_x, x_bar, constraint_violation
 
@@ -128,18 +130,19 @@ class PD:
         if normal_plot is True:
             plt.plot(range(self.num_iterations), np.sum((self.arr_x_k - np.array([[2], [0.2]])) ** 2, axis=0),
                      marker='x', markersize=1, color='b', linewidth=0.5)  # plot the obj of primal
-            plt.plot(range(self.num_iterations), np.sum((self.arr_x_bar - np.array([[2], [0.2]])) ** 2, axis=0),
-                     marker='o', markersize=1, color='r', linewidth=0.5)  # plot the obj of primal
+            # plt.plot(range(self.num_iterations), np.sum((self.arr_x_bar - np.array([[2], [0.2]])) ** 2, axis=0),
+            #          marker='o', markersize=1, color='r', linewidth=0.5)  # plot the obj of primal
             plt.plot(range(self.num_iterations),
                      np.sum((np.array([[0.20523677], [0.2]]) - np.array([[2], [0.2]])) ** 2) * np.ones(
                          self.num_iterations), linestyle='--', color='k', linewidth=0.5)  # plot the obj of primal
-            plt.legend([r'$f(x_k)$', r'$f(\bar{x}_K)$', 'Optimal value'], fontsize=10.5)
+            plt.legend([r'$f(x_k)$', 'Optimal value'], fontsize=10.5)
         else:  # plot in log x-axis
             plt.semilogx(range(self.num_iterations), np.sum((self.arr_x_k - np.array([[2], [0.2]])) ** 2, axis=0),
                          marker='x', markersize=1, color='b', linewidth=0.5)  # plot the obj of primal
             plt.semilogx(range(self.num_iterations),
                          np.sum((np.array([[0.20523677], [0.2]]) - np.array([[2], [0.2]])) ** 2) * np.ones(
                          self.num_iterations), linestyle='--', color='k', linewidth=0.5)  # plot the obj of primal
+            plt.legend([r'$f(x_k)$', 'Optimal value'], fontsize=10.5)
 
         # plt.plot(range(self.num_iterations), self.arr_dual_obj, linestyle='--', color='k', linewidth=1)
 
@@ -156,11 +159,88 @@ class PD:
         pass
 
 
+def sensitivity_analysis_on_k():
+    k_candidate = [500, 1000, 3000, 5000, 10000, 20000, 30000, 40000, 50000, 60000]
+    # k_candidate = [1000, 3000, 5000, 10000]
+    # k_candidate = [1000, 5000, 10000]
+    # k_candidate = [500, 1000, 1500]
+
+    f_x_record = np.zeros(len(k_candidate))
+    con_vio_record = np.zeros(len(k_candidate))
+    i = 0
+    for k_num in k_candidate:
+        pd_algorithm = PD(0.001, k_num, 1000)
+        f_x_record[i], x_bar, con_vio_record[i] = pd_algorithm.sip_primal_dual()
+        i += 1
+    plt.plot(k_candidate, f_x_record,
+             marker='x', markersize=3, color='b', linewidth=1)  # plot the obj of primal
+    plt.plot(range(max(k_candidate)),
+             np.sum((np.array([[0.20523677], [0.2]]) - np.array([[2], [0.2]])) ** 2) * np.ones(
+                 max(k_candidate)), linestyle='--', color='k', linewidth=1)
+    plt.legend([r'$f(\bar{x}_K)$', 'Optimal value'], fontsize=10.5)
+    plt.xlabel(r'$K$', fontsize=10.5)
+    plt.ylabel(r'Objective Value $f(\bar{x}_K)$', fontsize=10.5)
+    plt.show()
+
+    plt.plot(k_candidate, con_vio_record, marker='x', markersize=3, color='b', linewidth=1)  # constraint violation
+    plt.plot(range(max(k_candidate)), np.zeros(max(k_candidate)),
+             linestyle='--', color='k', linewidth=0.5)
+    plt.legend([r'$G(\bar{x}_K$)', 'Constraint violation'], fontsize=10.5)
+    plt.xlabel(r'$K$', fontsize=10.5)
+    plt.ylabel(r'G($\bar{x}_K$)', fontsize=10.5)
+    plt.show()
+
+    pd_algorithm.plot_result()
+    plt.show()
+
+    pd_algorithm.plot_result(False)
+    plt.show()
+
+
+def sensitivity_anlysis_on_sampling():
+    n_candidate = [10, 100, 1000]
+    k_iteration = 50000
+    lst_color = ['b', 'r', 'g', 'p']
+    lst_marker = ['x', 'o', '*']
+
+    f_x_record = np.zeros(len(n_candidate))
+    lst_con_vio_save = [None] * len(n_candidate)
+    i = 0
+    for n_num in n_candidate:
+        pd_algorithm = PD(0.001, k_iteration, n_num)
+        f_x_record[i], x_bar, temp = pd_algorithm.sip_primal_dual()
+        plt.semilogx(range(pd_algorithm.num_iterations), np.sum((pd_algorithm.arr_x_k - np.array([[2], [0.2]])) ** 2,
+                                                                axis=0),
+                     marker=lst_marker[i], markersize=1, color=lst_color[i], linewidth=0.5)  # plot the obj of primal
+        # lst_con_vio_save.append(pd_algorithm.g_max_violation[0:pd_algorithm.num_iterations].copy())
+        temp2 = pd_algorithm.g_max_violation[0:pd_algorithm.num_iterations].copy()
+        lst_con_vio_save[i] = temp2.copy()
+        i += 1
+
+    plt.plot(range(k_iteration),
+             np.sum((np.array([[0.20523677], [0.2]]) - np.array([[2], [0.2]])) ** 2) * np.ones(
+                 k_iteration), linestyle='--', color='k', linewidth=1)
+    plt.legend([r'$N=10$', r'$N=100$', r'$N=1000$', 'Optimal value'], fontsize=10.5)
+    plt.xlabel(r'$N$', fontsize=10.5)
+    plt.ylabel(r'Objective Value $f(x_k)$', fontsize=10.5)
+    plt.show()
+
+    for j in range(len(n_candidate)):
+        plt.semilogx(range(k_iteration), lst_con_vio_save[j][1:k_iteration + 1], marker=lst_marker[j], markersize=1,
+                     color=lst_color[j], linewidth=0.5)
+    plt.plot(range(k_iteration), np.zeros(k_iteration),
+             linestyle='--', color='k', linewidth=0.5)
+    plt.legend([r'$N=10$', r'$N=100$', r'$N=1000$', 'Constraint violation'], fontsize=10.5)
+    plt.xlabel(r'$N$', fontsize=10.5)
+    plt.ylabel(r'G($x_k$)', fontsize=10.5)
+    plt.show()
+
+
 def main():
     plt.rc('text', usetex=True)
     plt.rc('font', family='serif')
 
-    # np.random.seed(2)
+    np.random.seed(4)
     # pd_algorithm = PD(0.001, 1000, 1000)
     # normal_plot = False  # if yes, x-axis is normal, otherwise is log x
     # start_time = time.time()
@@ -173,34 +253,10 @@ def main():
     # print('f(x_bar) is:', f_x)
     # print('x_bar is:', x_bar)
 
-    # k_candidate = [1000, 5000, 10000, 15000, 20000, 25000, 30000, 40000, 50000, 60000]
-    # k_candidate = [1000, 5000, 10000]
-    k_candidate = [50000]
+    # sensitivity_analysis_on_k()
 
-    f_x_record = np.zeros(len(k_candidate))
-    con_vio_record = np.zeros(len(k_candidate))
-    i = 0
-    for k_num in k_candidate:
-        pd_algorithm = PD(0.001, k_num, 1000)
-        f_x_record[i], x_bar, con_vio_record[i] = pd_algorithm.sip_primal_dual()
-        i += 1
-    plt.plot(k_candidate, f_x_record,
-             marker='x', markersize=1, color='b', linewidth=0.5)  # plot the obj of primal
-    plt.plot(range(max(k_candidate)),
-             np.sum((np.array([[0.20523677], [0.2]]) - np.array([[2], [0.2]])) ** 2) * np.ones(
-                 max(k_candidate)), linestyle='--', color='k', linewidth=0.5)
-    plt.legend([r'$f(\bar{x}_K)$', 'Optimal value'], fontsize=10.5)
-    plt.xlabel(r'$K$', fontsize=10.5)
-    plt.ylabel(r'Objective Value $f(\bar{x}_K)$', fontsize=10.5)
-    plt.show()
+    sensitivity_anlysis_on_sampling()
 
-    plt.plot(k_candidate, con_vio_record, marker='x', markersize=1, color='b', linewidth=0.5)  # constraint violation
-    plt.plot(range(max(k_candidate)), np.zeros(max(k_candidate)),
-             linestyle='--', color='k', linewidth=0.5)
-    # plt.legend([r'$G(\bar{x}_K$', 'Constraint violation'], fontsize=10.5)
-    # plt.xlabel(r'$K$', fontsize=10.5)
-    # plt.ylabel(r'G($\bar{x}_K$)', fontsize=10.5)
-    plt.show()
 
 if __name__ == '__main__':
     main()
