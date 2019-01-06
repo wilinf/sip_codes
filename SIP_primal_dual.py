@@ -63,6 +63,7 @@ class PD:
 
         self.fixed_points = None  # fixed sample points in Monte-Carlo simulation
         # -- temp -- #
+        self.regenerate_samples = False  # by default is None; If None, plot constraint vio of x_bar
         self.g_max_violation = np.zeros([self.num_iterations, ])
 
     def grad_x_and_xi(self, x_k_minus):
@@ -82,7 +83,14 @@ class PD:
         :param x: solution x
         :return: the value of the constraint given the fixed sample points and a solution x
         """
-        return (5 * np.sin(math.pi * np.sqrt(self.fixed_points) / (1 + self.fixed_points**2))) * x[0]**2 - x[1]
+        return (5 * np.sin(math.pi * np.sqrt(self.fixed_points) / (1 + self.fixed_points ** 2))) * x[0] ** 2 - x[1]
+
+    def g_regenerate_samples(self, x):
+        if self.regenerate_samples is False:
+            samples = self.fixed_points
+        else:
+            samples = np.random.uniform(self.t_lb, self.t_ub, np.maximum(self.num_samples, 1000))
+        return (5 * np.sin(math.pi * np.sqrt(samples) / (1 + samples ** 2))) * x[0] ** 2 - x[1]
 
     def dual_update(self, x_k_minus, k):
         g_values_temp = self.g_samples(x_k_minus)
@@ -114,11 +122,13 @@ class PD:
                 self.arr_x_lb), self.arr_x_ub)
             self.arr_delta_k[:, k] = self.dual_update(x[:, k - 1], k)
             self.arr_x_bar[:, k] = np.mean(x[:, 0:k], axis=1)
+            if self.regenerate_samples is True:
+                self.g_max_violation[k] = np.max(self.g_regenerate_samples(x[:, k]))
         x_bar = np.mean(x, axis=1)
         f_x = (x_bar[0] - 2)**2 + (x_bar[1] - 0.2)**2
         self.arr_x_k = x
 
-        constraint_violation = np.max(self.g_samples(x_bar))
+        constraint_violation = np.max(self.g_regenerate_samples(x_bar))
 
         print('f(x_K) is', np.sum((x[:, self.num_iterations - 1] - np.array([2, 0.2])) ** 2), 'f(x_bar_K) is ', f_x,
               ' The optimum is', np.sum((np.array([[0.20523677], [0.2]]) - np.array([[2], [0.2]])) ** 2),
@@ -208,20 +218,19 @@ def sensitivity_anlysis_on_sampling():
     i = 0
     for n_num in n_candidate:
         pd_algorithm = PD(0.001, k_iteration, n_num)
+        pd_algorithm.regenerate_samples = True  # if it is on, regenerate samples to evaluate constraint violation
         f_x_record[i], x_bar, temp = pd_algorithm.sip_primal_dual()
         plt.semilogx(range(pd_algorithm.num_iterations), np.sum((pd_algorithm.arr_x_k - np.array([[2], [0.2]])) ** 2,
                                                                 axis=0),
                      marker=lst_marker[i], markersize=1, color=lst_color[i], linewidth=0.5)  # plot the obj of primal
-        # lst_con_vio_save.append(pd_algorithm.g_max_violation[0:pd_algorithm.num_iterations].copy())
-        temp2 = pd_algorithm.g_max_violation[0:pd_algorithm.num_iterations].copy()
-        lst_con_vio_save[i] = temp2.copy()
+        lst_con_vio_save[i] = pd_algorithm.g_max_violation[0:pd_algorithm.num_iterations].copy()
         i += 1
 
     plt.plot(range(k_iteration),
              np.sum((np.array([[0.20523677], [0.2]]) - np.array([[2], [0.2]])) ** 2) * np.ones(
                  k_iteration), linestyle='--', color='k', linewidth=1)
     plt.legend([r'$N=10$', r'$N=100$', r'$N=1000$', 'Optimal value'], fontsize=10.5)
-    plt.xlabel(r'$N$', fontsize=10.5)
+    plt.xlabel(r'$k$', fontsize=10.5)
     plt.ylabel(r'Objective Value $f(x_k)$', fontsize=10.5)
     plt.show()
 
@@ -231,7 +240,7 @@ def sensitivity_anlysis_on_sampling():
     plt.plot(range(k_iteration), np.zeros(k_iteration),
              linestyle='--', color='k', linewidth=0.5)
     plt.legend([r'$N=10$', r'$N=100$', r'$N=1000$', 'Constraint violation'], fontsize=10.5)
-    plt.xlabel(r'$N$', fontsize=10.5)
+    plt.xlabel(r'$k$', fontsize=10.5)
     plt.ylabel(r'G($x_k$)', fontsize=10.5)
     plt.show()
 
