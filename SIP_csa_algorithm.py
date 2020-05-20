@@ -139,7 +139,7 @@ class CSA:
             # if self.plot_setB is True:
             self.accumulate_num_of_bb[k] = len(index_set)
 
-        x_sum = np.zeros(2)
+        x_sum = np.zeros(self.x_dim)
         gamma_sum = 0
         # subset = set(index_set) & set(range(num_iteration - 5000, num_iteration + 1, 1))
         subset = set(index_set) - set(range(int(np.ceil(num_iteration / 2) - 1)))
