@@ -106,10 +106,10 @@ class CSA:
         g_grad = np.zeros([self.x_dim, len(values_inside_abs)])
         if len(pos_id) > 0:
             g_grad[:, pos_id] = np.array([
-                -np.ones(len(pos_id)), -theta_rand_value[pos_id], - 2 * theta_rand_value[pos_id],
+                -np.ones(len(pos_id)), -theta_rand_value[pos_id], - theta_rand_value[pos_id] ** 2,
                                        -np.ones(len(pos_id))])  # gradients
         if len(neg_id) > 0:
-            g_grad[:, neg_id] = np.array([np.ones(len(neg_id)), theta_rand_value[neg_id], 2 * theta_rand_value[neg_id],
+            g_grad[:, neg_id] = np.array([np.ones(len(neg_id)), theta_rand_value[neg_id], theta_rand_value[neg_id] ** 2,
                                        -np.ones(len(neg_id))])  # gradients
         g_values = np.abs(values_inside_abs) - x[-1]
         return g_grad, g_values
@@ -118,8 +118,8 @@ class CSA:
         values_inside_abs = np.sin(theta_rand_value) - (x[0] + x[1] * theta_rand_value
                                                         + x[2] * np.power(theta_rand_value, 2))  # values in abs
         g_grad = np.zeros([self.x_dim])
-        g_grad = np.array([-1, -theta_rand_value, -2 * theta_rand_value, -1]) if values_inside_abs >= 0 else \
-            np.array([1, theta_rand_value, 2 * theta_rand_value, -1])
+        g_grad = np.array([-1, -theta_rand_value, -theta_rand_value ** 2, -1]) if values_inside_abs >= 0 else \
+            np.array([1, theta_rand_value, theta_rand_value ** 2, -1])
         g_values = np.abs(values_inside_abs) - x[-1]
         return g_grad, g_values
 
@@ -244,18 +244,18 @@ def main():
     np.random.seed(1)
     parse_input = {
         'epsilon': 0.01,
-        'num_iterations': 1000,
-        'c_gamma': 0.05,
+        'num_iterations': 10000,
+        'c_gamma': 0.085,
         'c_eta': 0.0005,
-        'x0': np.array([1, 1, 1.5])  # according to the paper, the third one is eta, whose maximum is 5.389 if x=(1,1)
+        'x0': np.array([1, 1, 1, 1.5])  # according to the paper, the third one is eta, whose maximum is 5.389 if x=(1,1)
     }
     csa = CSA(parse_input)
 
     # plt.rc('text', usetex=True)
     # plt.rc('font', family='serif')
 
-    csa.run_adaptive_sampling(10, 50)
-    # csa.run_fixed_sampling(1000)
+    # csa.run_adaptive_sampling(10, 50)
+    csa.run_fixed_sampling(1000)
     csa.plot_x_last_iterate()
     csa.plot_x_bar()
     plt.show()

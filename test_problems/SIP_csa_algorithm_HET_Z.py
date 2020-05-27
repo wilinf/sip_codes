@@ -22,20 +22,20 @@ class CSA:
 
         # ========= objective function ========= #
         self.dim_num_s = self.x_dim
-        self.grad_objective = np.array([0, 0, 0, 1])  # gradients of the obj function
+        self.grad_objective = np.array([0, 1])  # gradients of the obj function
 
         # ========= decision variables ========= #
         self.x_ub = 2  # np.inf
         self.x_lb = - 2  # -np.inf
 
         # ========= Delta region ========= #
-        self.delta_lb = 0
+        self.delta_lb = -1
         self.delta_ub = 1
 
         # ========= calculate the parameters ========= #
-        self.l_g_x = 1  # given any delta, L-constant of g
+        self.l_g_x = 2  # given any delta, L-constant of g
         self.l_f = 1  #
-        self.l_g_delta = max(self.x_ub,  1)  # ## given any x, L-constant of g(x, delta)
+        self.l_g_delta = max(2 * self.x_ub,  1)  # ## given any x, L-constant of g(x, delta)
         self.d_x = (self.x_ub - self.x_lb) * np.sqrt(self.x_dim)  # diameter of the domain x
         self.d_delta = self.delta_ub - self.delta_lb  # diameter of delta
         self.r_delta = (self.delta_ub - self.delta_lb) / 2  # radius of the largest ball which can be included in Delta
@@ -99,27 +99,24 @@ class CSA:
         return arr_g_grad_max, temp0
 
     def calculate_g_grad_and_values_arr(self, x, theta_rand_value):
-        values_inside_abs = np.sin(theta_rand_value) - (x[0] + x[1] * theta_rand_value
-                                                        + x[2] * np.power(theta_rand_value, 2))  # values in abs
+        values_inside_abs = 1 - np.power(theta_rand_value, 2) - (0.5 * x[0] ** 2 - 2 * x[0] * theta_rand_value)  # values in abs
         pos_id = np.where(values_inside_abs >= 0)[0]
         neg_id = np.setdiff1d(range(len(values_inside_abs)), pos_id, assume_unique=True)
         g_grad = np.zeros([self.x_dim, len(values_inside_abs)])
         if len(pos_id) > 0:
-            g_grad[:, pos_id] = np.array([
-                -np.ones(len(pos_id)), -theta_rand_value[pos_id], - 2 * theta_rand_value[pos_id],
-                                       -np.ones(len(pos_id))])  # gradients
+            g_grad[:, pos_id] = np.array([-np.ones(len(pos_id)) * x[0] + 2 * theta_rand_value[pos_id],
+                                          -np.ones(len(pos_id))])  # gradients
         if len(neg_id) > 0:
-            g_grad[:, neg_id] = np.array([np.ones(len(neg_id)), theta_rand_value[neg_id], 2 * theta_rand_value[neg_id],
-                                       -np.ones(len(neg_id))])  # gradients
+            g_grad[:, neg_id] = np.array([np.ones(len(neg_id)) * x[0] - 2 * theta_rand_value[neg_id],
+                                          -np.ones(len(neg_id))])  # gradients
         g_values = np.abs(values_inside_abs) - x[-1]
         return g_grad, g_values
 
     def calculate_g_grad_and_values(self, x, theta_rand_value):
-        values_inside_abs = np.sin(theta_rand_value) - (x[0] + x[1] * theta_rand_value
-                                                        + x[2] * np.power(theta_rand_value, 2))  # values in abs
+        values_inside_abs = 1 - np.power(theta_rand_value, 2) - (0.5 * x[0] ** 2 - 2 * x[0] * theta_rand_value)   # values in abs
         g_grad = np.zeros([self.x_dim])
-        g_grad = np.array([-1, -theta_rand_value, -2 * theta_rand_value, -1]) if values_inside_abs >= 0 else \
-            np.array([1, theta_rand_value, 2 * theta_rand_value, -1])
+        g_grad = np.array([-x[0] + 2 * theta_rand_value, -1]) if values_inside_abs >= 0 else \
+            np.array([x[0] - 2 * theta_rand_value, -1])
         g_values = np.abs(values_inside_abs) - x[-1]
         return g_grad, g_values
 
@@ -132,7 +129,7 @@ class CSA:
 
         gamma = np.zeros(num_iteration + 1)
         eta = np.zeros(num_iteration + 1)
-
+        count = 0
         index_set = []
         for k in range(num_iteration):
             gamma[k] = self.c_gamma * self.d_x / (np.sqrt(k + 1) * (self.l_f + self.l_g_x))
@@ -157,6 +154,10 @@ class CSA:
             else:
                 self.obj_weighted_sum[k] = float('inf')
                 print('Empty set_B is found in iteration:', k)
+
+            count += 1
+            if count == 2000:
+                aa = 1
 
             # if self.plot_setB is True:
             self.accumulate_num_of_bb[k] = len(index_set)
@@ -246,8 +247,8 @@ def main():
         'epsilon': 0.01,
         'num_iterations': 1000,
         'c_gamma': 0.05,
-        'c_eta': 0.0005,
-        'x0': np.array([1, 1, 1.5])  # according to the paper, the third one is eta, whose maximum is 5.389 if x=(1,1)
+        'c_eta': 0.001,
+        'x0': np.array([1, 1])  # according to the paper, the third one is eta, whose maximum is 5.389 if x=(1,1)
     }
     csa = CSA(parse_input)
 
