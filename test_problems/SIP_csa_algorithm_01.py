@@ -61,9 +61,7 @@ class CSA:
         num_samples = self.fixed_num_samples
         random_samples = np.random.uniform(0, 1, num_samples)
 
-        arr_g_grad = - np.array([random_samples**i for i in range(self.dim_num_s)])  # Sum s^(i-1)
-
-        arr_g_values = np.dot(x, arr_g_grad) - (- np.tan(random_samples))
+        arr_g_grad, arr_g_values = self.calculate_g_grad_and_values(x, random_samples)
 
         max_id = np.where(arr_g_values == arr_g_values.max())
         return arr_g_grad[:, max_id[0][0]], arr_g_values[max_id[0][0]]
@@ -223,15 +221,15 @@ def main():
         'epsilon': 0.001,
         'num_iterations': 1000,
         'c_gamma': 0.05,
-        'c_eta': 0.0010,
-        'x0': np.array([2, 0, 0])
+        'c_eta': 0.003,
+        'x0': np.array([2, 0, 0, 0, 0, 0, 0, 0, 0])
     }
     csa = CSA(parse_input)
 
     # plt.rc('text', usetex=True)
     # plt.rc('font', family='serif')
 
-    csa.run_adaptive_sampling(20, 30)
+    csa.run_adaptive_sampling(5, 50)
     # csa.run_fixed_sampling(1000)
     csa.plot_x_last_iterate()
     csa.plot_x_bar()

@@ -1,4 +1,4 @@
-# SIP practice: problem OET1
+# SIP practice: problem OET2
 import numpy as np
 import math
 import numpy.matlib
