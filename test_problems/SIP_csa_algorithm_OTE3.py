@@ -1,4 +1,4 @@
-# SIP practice: problem OET1
+# SIP practice: problem OET3
 import numpy as np
 import math
 import numpy.matlib
@@ -22,23 +22,23 @@ class CSA:
 
         # ========= objective function ========= #
         self.dim_num_s = self.x_dim
-        self.grad_objective = np.array([0, 0, 1])  # gradients of the obj function
+        self.grad_objective = np.array([0, 0, 0, 1])  # gradients of the obj function
 
         # ========= decision variables ========= #
-        self.x_ub = 5  # np.inf
-        self.x_lb = - 5  # -np.inf
+        self.x_ub = 2  # np.inf
+        self.x_lb = - 2  # -np.inf
 
         # ========= Delta region ========= #
         self.delta_lb = 0
-        self.delta_ub = 2
+        self.delta_ub = 1
 
         # ========= calculate the parameters ========= #
-        self.l_g_x = np.exp(2)  # given any delta, L-constant of g
+        self.l_g_x = 1  # given any delta, L-constant of g
         self.l_f = 1  #
-        self.l_g_delta = self.x_ub * np.exp(2)  # ## given any x, L-constant of g(x, delta)
+        self.l_g_delta = max(self.x_ub,  1)  # ## given any x, L-constant of g(x, delta)
         self.d_x = (self.x_ub - self.x_lb) * np.sqrt(self.x_dim)  # diameter of the domain x
-        self.d_delta = 2  # diameter of delta
-        self.r_delta = 1  # radius of the largest ball which can be included in Delta
+        self.d_delta = self.delta_ub - self.delta_lb  # diameter of delta
+        self.r_delta = (self.delta_ub - self.delta_lb) / 2  # radius of the largest ball which can be included in Delta
         self.parameter_c = self.l_g_delta * (self.r_delta + self.d_delta) - np.log(1)
 
         # output setup #
@@ -99,24 +99,27 @@ class CSA:
         return arr_g_grad_max, temp0
 
     def calculate_g_grad_and_values_arr(self, x, theta_rand_value):
-        values_inside_abs = np.power(theta_rand_value, 2) - x[0] * theta_rand_value - x[1] * np.exp(theta_rand_value)
+        values_inside_abs = np.sin(theta_rand_value) - (x[0] + x[1] * theta_rand_value
+                                                        + x[2] * np.power(theta_rand_value, 2))  # values in abs
         pos_id = np.where(values_inside_abs >= 0)[0]
         neg_id = np.setdiff1d(range(len(values_inside_abs)), pos_id, assume_unique=True)
         g_grad = np.zeros([self.x_dim, len(values_inside_abs)])
         if len(pos_id) > 0:
-            g_grad[:, pos_id] = np.array([-theta_rand_value[pos_id], -np.exp(theta_rand_value[pos_id]),
-                                       -np.ones(len(pos_id))])
+            g_grad[:, pos_id] = np.array([
+                -np.ones(len(pos_id)), -theta_rand_value[pos_id], - 2 * theta_rand_value[pos_id],
+                                       -np.ones(len(pos_id))])  # gradients
         if len(neg_id) > 0:
-            g_grad[:, neg_id] = np.array([theta_rand_value[neg_id], np.exp(theta_rand_value[neg_id]),
-                                       -np.ones(len(neg_id))])
+            g_grad[:, neg_id] = np.array([np.ones(len(neg_id)), theta_rand_value[neg_id], 2 * theta_rand_value[neg_id],
+                                       -np.ones(len(neg_id))])  # gradients
         g_values = np.abs(values_inside_abs) - x[-1]
         return g_grad, g_values
 
     def calculate_g_grad_and_values(self, x, theta_rand_value):
-        values_inside_abs = np.power(theta_rand_value, 2) - x[0] * theta_rand_value - x[1] * np.exp(theta_rand_value)
+        values_inside_abs = np.sin(theta_rand_value) - (x[0] + x[1] * theta_rand_value
+                                                        + x[2] * np.power(theta_rand_value, 2))  # values in abs
         g_grad = np.zeros([self.x_dim])
-        g_grad = np.array([-theta_rand_value, -np.exp(theta_rand_value), -1]) if values_inside_abs >= 0 else \
-            np.array([theta_rand_value, np.exp(theta_rand_value), -1])
+        g_grad = np.array([-1, -theta_rand_value, -2 * theta_rand_value, -1]) if values_inside_abs >= 0 else \
+            np.array([1, theta_rand_value, 2 * theta_rand_value, -1])
         g_values = np.abs(values_inside_abs) - x[-1]
         return g_grad, g_values
 

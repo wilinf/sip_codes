@@ -1,4 +1,4 @@
-# SIP practice: problem OET2
+# SIP practice: problem OET1
 import numpy as np
 import math
 import numpy.matlib
@@ -244,7 +244,7 @@ def main():
         'num_iterations': 1000,
         'c_gamma': 0.05,
         'c_eta': 0.0005,
-        'x0': np.array([1, 1, 1.5])  # according to the paper, the third one is eta, whose maximum is 5.389 if x=(1,1)
+        'x0': np.array([1, 1, 1.5])  # OTE1, the third one is eta, whose maximum is 5.389 if x=(1,1)
     }
     csa = CSA(parse_input)
 
