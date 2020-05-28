@@ -244,10 +244,10 @@ def main():
     np.random.seed(1)
     parse_input = {
         'epsilon': 0.01,
-        'num_iterations': 10000,
+        'num_iterations': 30000,
         'c_gamma': 0.085,
-        'c_eta': 0.0005,
-        'x0': np.array([1, 1, 1, 1.5])  # according to the paper, the third one is eta, whose maximum is 5.389 if x=(1,1)
+        'c_eta': 0.001,
+        'x0': np.array([1, 1, 1, 1])  # according to the paper, the third one is eta, whose maximum is 5.389 if x=(1,1)
     }
     csa = CSA(parse_input)
 

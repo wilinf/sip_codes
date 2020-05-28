@@ -1,4 +1,4 @@
-# SIP practice: problem OET3
+# SIP practice: problem liu1
 import numpy as np
 import math
 import numpy.matlib
@@ -22,20 +22,20 @@ class CSA:
 
         # ========= objective function ========= #
         self.dim_num_s = self.x_dim
-        self.grad_objective = np.array([0, 1])  # gradients of the obj function
+        # self.grad_objective = np.array([0, 1])  # gradients of the obj function  2*x1 -4, 2*x2 - 2
 
         # ========= decision variables ========= #
-        self.x_ub = 2  # np.inf
-        self.x_lb = - 2  # -np.inf
+        self.x_ub = 5  # np.inf
+        self.x_lb = - 5  # -np.inf
 
         # ========= Delta region ========= #
         self.delta_lb = 0
-        self.delta_ub = 1
+        self.delta_ub = 2
 
         # ========= calculate the parameters ========= #
-        self.l_g_x = 1  # given any delta, L-constant of g
-        self.l_f = 1  #
-        self.l_g_delta = max(2 * self.x_ub,  1)  # ## given any x, L-constant of g(x, delta)
+        self.l_g_x = 5  # given any delta, L-constant of g
+        self.l_f = 14  # sup|gradient(f)|
+        self.l_g_delta = max(4 * self.x_ub,  1)  # ## given any x, L-constant of g(x, delta)
         self.d_x = (self.x_ub - self.x_lb) * np.sqrt(self.x_dim)  # diameter of the domain x
         self.d_delta = self.delta_ub - self.delta_lb  # diameter of delta
         self.r_delta = (self.delta_ub - self.delta_lb) / 2  # radius of the largest ball which can be included in Delta
@@ -99,16 +99,28 @@ class CSA:
         return arr_g_grad_max, temp0
 
     def calculate_g_grad_and_values_arr(self, x, theta_rand_value):
-        g_values = (2 * theta_rand_value - 1) * x[0] + theta_rand_value * (1 - theta_rand_value) * (1 - x[0]) \
-                            - x[1]  # values in abs
-        g_grad = np.array([theta_rand_value - 1 + theta_rand_value ** 2, - np.ones(len(theta_rand_value))])
+        g_values = - x[0] + (1 + theta_rand_value ** 2) * x[1]  # values in abs
+        g_grad = np.array([- np.ones(len(theta_rand_value)), (1 + theta_rand_value ** 2)])
         return g_grad, g_values
 
     def calculate_g_grad_and_values(self, x, theta_rand_value):
-        g_values = (2 * theta_rand_value - 1) * x[0] + theta_rand_value * (1 - theta_rand_value) * (1 - x[0]) \
-                   - x[1]  # values in abs
-        g_grad = np.array([theta_rand_value - 1 + theta_rand_value ** 2, - 1])
+        g_values = - x[0] + (1 + theta_rand_value ** 2) * x[1]  # values in abs
+        g_grad = np.array([- 1, (1 + theta_rand_value ** 2)])
         return g_grad, g_values
+
+    def calculate_f_grad(self, x_sol):
+        if len(x_sol.shape) == 1:
+            f_grad = 2 * x_sol - np.array([4, 2])
+        else:
+            f_grad = 2 * x_sol - np.tile(np.array([[4], [2]]), [1, x_sol.shape[1]])
+        return f_grad
+
+    def calculate_f_values(self, x_sol):
+        if len(x_sol.shape) == 1:
+            f_values = x_sol[0] ** 2 + x_sol[1] ** 2 - 4 * x_sol[0] - 2 * x_sol[1]
+        else:
+            f_values = x_sol[0, :] ** 2 + x_sol[1, :] ** 2 - 4 * x_sol[0, :] - 2 * x_sol[1, :]
+        return f_values
 
     def csa_algorithm(self):
         num_iteration = self.num_iterations
@@ -128,7 +140,7 @@ class CSA:
             grad_a_k, value_a_k = self.fixed_constraints_sampling(self.x_sol[:, k]) if self.fixed_sampling is True \
                 else self.adaptive_constraint_sampling(self.x_sol[:, k], k, self.adaptive_iterations)
             if value_a_k <= eta[k]:
-                vec_h_k = self.grad_objective
+                vec_h_k = self.calculate_f_grad(self.x_sol[:, k])  # self.grad_objective
                 index_set.append(k)
             else:
                 vec_h_k = grad_a_k
@@ -137,7 +149,7 @@ class CSA:
             # to calculate x_bar
             idx_s = list(set(index_set) & set(range(int(np.ceil(k / 2)), k + 1)))
             if len(idx_s) > 0:
-                self.obj_weighted_sum[k] = np.dot(gamma[idx_s], np.dot(self.grad_objective, self.x_sol[:, idx_s])) \
+                self.obj_weighted_sum[k] = np.dot(gamma[idx_s], self.calculate_f_values(self.x_sol[:, idx_s])) \
                                            / np.sum(gamma[idx_s])
                 self.arr_x_bar_with_k[:, k] = np.sum((np.matlib.repmat(gamma[idx_s], self.x_dim, 1) * self.x_sol[:, idx_s] /
                                                       np.sum(gamma[idx_s])), axis=1)
@@ -156,7 +168,7 @@ class CSA:
             x_sum += gamma[j] * self.x_sol[:, j]
             gamma_sum += gamma[j]
         x_bar = x_sum / gamma_sum
-        obj = np.dot(self.grad_objective, x_bar)
+        obj = self.calculate_f_values(x_bar)
         return x_bar, obj
 
     def plot_constraint_violation(self, out_of_samples=10000):
@@ -173,7 +185,7 @@ class CSA:
         return
 
     def plot_x_last_iterate(self):
-        plt.semilogx(range(self.plot_len), np.dot(self.grad_objective, self.x_sol[:, 0:self.plot_len]),
+        plt.semilogx(range(self.plot_len), self.calculate_f_values(self.x_sol[:, 0:self.plot_len]),
                      color=self.plot_linecolor, linestyle=self.plot_linestyle, linewidth=self.plot_linewid)
 
     def plot_x_bar(self):
@@ -232,9 +244,9 @@ def main():
     parse_input = {
         'epsilon': 0.01,
         'num_iterations': 1000,
-        'c_gamma': 0.05,  # 0.12
-        'c_eta': 0.0001,  # 0.0005
-        'x0': np.array([1, 1])  # according to the paper, the third one is eta, whose maximum is 5.389 if x=(1,1)
+        'c_gamma': 0.5,  # 0.12
+        'c_eta': 0.0005,  # 0.0005
+        'x0': np.array([0, 0])  # according to the paper, the third one is eta, whose maximum is 5.389 if x=(1,1)
     }
     csa = CSA(parse_input)
 
