@@ -1,4 +1,4 @@
-# SIP practice: problem anderson1
+# SIP practice: problem ito2000
 import numpy as np
 import math
 import numpy.matlib
@@ -32,6 +32,10 @@ class CSA:
         # ========= decision variables ========= #
         self.x_ub = 5  # np.inf
         self.x_lb = - 5  # -np.inf
+
+        # ========= Delta region ========= #
+        self.delta_lb = -1
+        self.delta_ub = 1
 
         # ========= calculate the parameters ========= #
         self.l_g_x = 1  # given any delta, L-constant of g
@@ -72,27 +76,21 @@ class CSA:
         # epsilon_k = 1 / np.sqrt(k + 1)
         kappa = np.minimum(np.minimum(epsilon_k / (2 * self.parameter_c), (epsilon_k / (2 * self.delta_dim))**2), 1)
         theta_sample = np.zeros([iteration])
-        theta_rand = np.random.uniform(0, 1, iteration)
+        theta_rand = np.random.uniform(self.delta_lb, self.delta_ub, iteration)
         theta_sample[0] = theta_rand[0].copy()
         t = 1
+        saved_g_values = np.zeros([iteration])
+        saved_g_grad = np.zeros([self.x_dim, iteration])
         while t < iteration:
-            _, g_value = self.calculate_g_grad_and_values(x, theta_rand[t])
-            alpha = np.minimum(1, np.exp((
-                                             g_value  # problem specific
-                                         ) / kappa))
+            saved_g_grad[:, t], saved_g_values[t] = self.calculate_g_grad_and_values(x, theta_rand[t])
+            alpha = np.minimum(1, np.exp((saved_g_values[t]) / kappa))
             u = np.random.uniform(0, 1)
             sign_u = np.sign(np.sign(u - alpha) + 1)
             theta_sample[t] = (theta_rand[t].T * (1 - sign_u) + theta_sample[t - 1].T * sign_u).T
             t += 1
-        temp_values, arr_g_grad_max = np.zeros([selected_samples + 1]), np.zeros([self.x_dim])
-        temp_values[0] = -10e9
-        temp0 = -10e9
-        for i in range(selected_samples):
-            arr_g_grad, temp_values[i + 1] = self.calculate_g_grad_and_values(x, theta_rand[iteration - i - 1])
-            if temp_values[i + 1].max() > temp0:
-                arr_g_grad_max = arr_g_grad
-                temp0 = temp_values[i + 1]
-        return arr_g_grad_max, temp0
+        max_g_values = saved_g_values[-selected_samples:].max()
+        loc_max = np.where(saved_g_values[-selected_samples:] == max_g_values)[0][0]
+        return saved_g_grad[:, -selected_samples:][:, loc_max], max_g_values
 
     def calculate_g_grad_and_values(self, x, theta_rand_value):
         g_grad = - np.array([theta_rand_value**i for i in range(self.dim_num_s)])
@@ -221,15 +219,15 @@ def main():
         'epsilon': 0.001,
         'num_iterations': 1000,
         'c_gamma': 0.05,
-        'c_eta': 0.003,
-        'x0': np.array([2, 0, 0, 0, 0, 0, 0, 0, 0])
+        'c_eta': 0.001,
+        'x0': np.array([2, 0, 0])
     }
     csa = CSA(parse_input)
 
     # plt.rc('text', usetex=True)
     # plt.rc('font', family='serif')
 
-    csa.run_adaptive_sampling(5, 50)
+    csa.run_adaptive_sampling(10, 50)
     # csa.run_fixed_sampling(1000)
     csa.plot_x_last_iterate()
     csa.plot_x_bar()

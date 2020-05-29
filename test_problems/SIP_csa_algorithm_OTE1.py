@@ -74,29 +74,18 @@ class CSA:
         theta_rand = np.random.uniform(self.delta_lb, self.delta_ub, iteration)
         theta_sample[0] = theta_rand[0].copy()
         t = 1
+        saved_g_values = np.zeros([iteration])
+        saved_g_grad = np.zeros([self.x_dim, iteration])
         while t < iteration:
-            _, g_value = self.calculate_g_grad_and_values(x, theta_rand[t])
-            alpha = np.minimum(1, np.exp((
-                                             g_value  # problem specific
-                                         ) / kappa))
+            saved_g_grad[:, t], saved_g_values[t] = self.calculate_g_grad_and_values(x, theta_rand[t])
+            alpha = np.minimum(1, np.exp((saved_g_values[t]) / kappa))
             u = np.random.uniform(0, 1)
             sign_u = np.sign(np.sign(u - alpha) + 1)
             theta_sample[t] = (theta_rand[t].T * (1 - sign_u) + theta_sample[t - 1].T * sign_u).T
             t += 1
-        temp_values, arr_g_grad_max = np.zeros([selected_samples + 1]), np.zeros([self.x_dim])
-        temp_values[0] = -10e9
-        temp0 = -10e9
-        if selected_samples == 1:
-            arr_g_grad, temp_values[1] = self.calculate_g_grad_and_values(x, theta_rand[-1])
-            if temp_values[1].max() > temp0:
-                arr_g_grad_max = arr_g_grad
-                temp0 = temp_values[1]
-        else:
-            arr_g_grad, temp_values = self.calculate_g_grad_and_values_arr(x, theta_rand[iteration -
-                                                                                         selected_samples:iteration])
-            max_id = np.where(temp_values == temp_values.max())
-            arr_g_grad_max, temp0 = arr_g_grad[:, max_id[0][0]], temp_values[max_id[0][0]]
-        return arr_g_grad_max, temp0
+        max_g_values = saved_g_values[-selected_samples:].max()
+        loc_max = np.where(saved_g_values[-selected_samples:] == max_g_values)[0][0]
+        return saved_g_grad[:, -selected_samples:][:, loc_max], max_g_values
 
     def calculate_g_grad_and_values_arr(self, x, theta_rand_value):
         values_inside_abs = np.power(theta_rand_value, 2) - x[0] * theta_rand_value - x[1] * np.exp(theta_rand_value)
