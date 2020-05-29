@@ -25,8 +25,8 @@ class CSA:
         # self.grad_objective = np.array([0, 1])  # gradients of the obj function  2*x1 -4, 2*x2 - 2
 
         # ========= decision variables ========= #
-        self.x_ub = 10  # np.inf
-        self.x_lb = - 10  # -np.inf
+        self.x_ub = 5  # np.inf
+        self.x_lb = - 5  # -np.inf
 
         # ========= Delta region ========= #
         self.delta_lb = 0
@@ -100,12 +100,12 @@ class CSA:
 
     def calculate_g_grad_and_values_arr(self, x, theta_rand_value):
         g_values = np.cos(theta_rand_value) * x[0] + np.sin(theta_rand_value) * x[1] - 1  # values in abs
-        g_grad = np.array([- np.sin(theta_rand_value), np.cos(theta_rand_value)])
+        g_grad = np.array([np.cos(theta_rand_value), np.sin(theta_rand_value)])
         return g_grad, g_values
 
     def calculate_g_grad_and_values(self, x, theta_rand_value):
         g_values = np.cos(theta_rand_value) * x[0] + np.sin(theta_rand_value) * x[1] - 1  # values in abs
-        g_grad = np.array([- np.sin(theta_rand_value), np.cos(theta_rand_value)])
+        g_grad = np.array([np.cos(theta_rand_value), np.sin(theta_rand_value)])
         return g_grad, g_values
 
     def calculate_f_grad(self, x_sol):
@@ -245,9 +245,9 @@ def main():
     np.random.seed(1)
     parse_input = {
         'epsilon': 0.01,
-        'num_iterations': 10000,
-        'c_gamma': 0.3,  # 0.03
-        'c_eta': 0.001,  # 0.0005
+        'num_iterations': 1000,
+        'c_gamma': 0.1,  # 0.03
+        'c_eta': 0.00001,  # 0.0005
         'x0': np.array([1, 1])  # according to the paper, the third one is eta, whose maximum is 5.389 if x=(1,1)
     }
     csa = CSA(parse_input)
@@ -255,7 +255,7 @@ def main():
     # plt.rc('text', usetex=True)
     # plt.rc('font', family='serif')
 
-    csa.run_adaptive_sampling(10, 50)
+    csa.run_adaptive_sampling(10, 30)
     # csa.run_fixed_sampling(1000)
     csa.plot_x_last_iterate()
     csa.plot_x_bar()
