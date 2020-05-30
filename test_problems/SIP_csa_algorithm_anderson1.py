@@ -1,4 +1,4 @@
-# SIP practice: problem OET3
+# SIP practice: problem HET_Z
 import numpy as np
 import math
 import numpy.matlib
@@ -18,25 +18,24 @@ class CSA:
         self.c_gamma, self.c_eta = parse_input['c_gamma'], parse_input['c_eta']  # to adjust gamma/eta in simulations
 
         self.x_dim = len(self.x0)  # dimension of x
-        self.delta_dim = 1
+        self.delta_dim = 2
 
         # ========= objective function ========= #
         self.dim_num_s = self.x_dim
-        self.grad_objective = np.array([0, 0, 0, 1])  # gradients of the obj function
+        self.grad_objective = np.array([0, 0, 1])  # gradients of the obj function
 
         # ========= decision variables ========= #
-        self.x_ub = 2  # np.inf
-        self.x_lb = - 2  # -np.inf
+        self.x_ub = 5  # np.inf
+        self.x_lb = - 5  # -np.inf
 
         # ========= Delta region ========= #
         self.delta_lb = 0
-        self.delta_ub = 1
-        self.adaptive_sampling_length = (self.delta_ub - self.delta_lb) / 2
+        self.delta_ub = 2
 
         # ========= calculate the parameters ========= #
         self.l_g_x = 1  # given any delta, L-constant of g
         self.l_f = 1  #
-        self.l_g_delta = max(self.x_ub,  1)  # ## given any x, L-constant of g(x, delta)
+        self.l_g_delta = 2 + self.x_ub  # ## given any x, L-constant of g(x, delta)
         self.d_x = (self.x_ub - self.x_lb) * np.sqrt(self.x_dim)  # diameter of the domain x
         self.d_delta = self.delta_ub - self.delta_lb  # diameter of delta
         self.r_delta = (self.delta_ub - self.delta_lb) / 2  # radius of the largest ball which can be included in Delta
@@ -59,7 +58,7 @@ class CSA:
 
     def fixed_constraints_sampling(self, x):
         num_samples = self.fixed_num_samples
-        random_samples = np.random.uniform(self.delta_lb, self.delta_ub, num_samples)
+        random_samples = np.random.uniform(self.delta_lb, self.delta_ub, [self.delta_dim, num_samples])
 
         arr_g_grad, arr_g_values = self.calculate_g_grad_and_values_arr(x, random_samples)
 
@@ -71,53 +70,37 @@ class CSA:
         epsilon_k = (self.l_f + self.l_g_x) * self.d_x / np.sqrt(k + 1)
         # epsilon_k = 1 / np.sqrt(k + 1)
         kappa = np.minimum(np.minimum(epsilon_k / (2 * self.parameter_c), (epsilon_k / (2 * self.delta_dim))**2), 1)
-        theta_rand = np.random.uniform(-0.5, 0.5, iteration)
-        theta_samples = theta_rand.copy()
-        theta_samples[0] = (self.delta_ub - self.delta_lb) / 2 + theta_rand[0] * (self.delta_ub - self.delta_lb)
+        theta_sample = np.zeros([self.delta_dim, iteration])
+        theta_rand = np.random.uniform(self.delta_lb, self.delta_ub, [self.delta_dim, iteration])
+        theta_sample[:, 0] = theta_rand[:, 0].copy()
         t = 1
         saved_g_values = np.zeros([iteration])
         saved_g_grad = np.zeros([self.x_dim, iteration])
-        saved_g_grad[:, 0], saved_g_values[0] = self.calculate_g_grad_and_values(x, theta_samples[0])
-        g_values_temp = saved_g_values[0]
-        theta_loc = theta_samples[0]
+        saved_g_grad[:, 0], saved_g_values[0] = self.calculate_g_grad_and_values(x, theta_rand[t])
         while t < iteration:
-            theta_samples[t] = np.minimum(np.maximum(
-                theta_loc + theta_rand[t] * self.adaptive_sampling_length,
-                self.delta_lb), self.delta_ub)
-            saved_g_grad[:, t], saved_g_values[t] = self.calculate_g_grad_and_values(x, theta_samples[t])
-            alpha = np.minimum(1, np.exp((saved_g_values[t] - g_values_temp) / kappa))
+            saved_g_grad[:, t], saved_g_values[t] = self.calculate_g_grad_and_values(x, theta_rand[:, t])
+            alpha = np.minimum(1, np.exp((saved_g_values[t] - saved_g_values[t - 1]) / kappa))
             u = np.random.uniform(0, 1)
             sign_u = np.sign(np.sign(u - alpha) + 1)
-            g_values_temp = saved_g_values[t] * (1 - sign_u) + g_values_temp * sign_u
-            theta_loc = theta_samples[t] * (1 - sign_u) + theta_loc * sign_u
+            theta_sample[:, t] = (theta_rand[:, t].T * (1 - sign_u) + theta_sample[:, t - 1].T * sign_u).T
+            saved_g_values[t] = saved_g_values[t] * (1 - sign_u) + saved_g_values[t - 1] * sign_u
             t += 1
         max_g_values = saved_g_values[-selected_samples:].max()
         loc_max = np.where(saved_g_values[-selected_samples:] == max_g_values)[0][0]
         return saved_g_grad[:, -selected_samples:][:, loc_max], max_g_values
 
     def calculate_g_grad_and_values_arr(self, x, theta_rand_value):
-        values_inside_abs = np.sin(theta_rand_value) - (x[0] + x[1] * theta_rand_value
-                                                        + x[2] * np.power(theta_rand_value, 2))  # values in abs
-        pos_id = np.where(values_inside_abs >= 0)[0]
-        neg_id = np.setdiff1d(range(len(values_inside_abs)), pos_id, assume_unique=True)
-        g_grad = np.zeros([self.x_dim, len(values_inside_abs)])
-        if len(pos_id) > 0:
-            g_grad[:, pos_id] = np.array([
-                -np.ones(len(pos_id)), -theta_rand_value[pos_id], - theta_rand_value[pos_id] ** 2,
-                                       -np.ones(len(pos_id))])  # gradients
-        if len(neg_id) > 0:
-            g_grad[:, neg_id] = np.array([np.ones(len(neg_id)), theta_rand_value[neg_id], theta_rand_value[neg_id] ** 2,
-                                       -np.ones(len(neg_id))])  # gradients
-        g_values = np.abs(values_inside_abs) - x[-1]
+        g_values = -1/6 * ((theta_rand_value[0, :] - 1) ** 2 + theta_rand_value[1, :]) * \
+                   (theta_rand_value[0, :] + 2 - theta_rand_value[1, :]) \
+                   - theta_rand_value[0, :] * x[0] - theta_rand_value[1, :] * x[1] - x[2]  # values in abs
+        g_grad = np.array([-theta_rand_value[0, :], -theta_rand_value[1, :], - np.ones(theta_rand_value.shape[1])])
         return g_grad, g_values
 
     def calculate_g_grad_and_values(self, x, theta_rand_value):
-        values_inside_abs = np.sin(theta_rand_value) - (x[0] + x[1] * theta_rand_value
-                                                        + x[2] * np.power(theta_rand_value, 2))  # values in abs
-        g_grad = np.zeros([self.x_dim])
-        g_grad = np.array([-1, -theta_rand_value, -theta_rand_value ** 2, -1]) if values_inside_abs >= 0 else \
-            np.array([1, theta_rand_value, theta_rand_value ** 2, -1])
-        g_values = np.abs(values_inside_abs) - x[-1]
+        g_values = -1/6 * ((theta_rand_value[0] - 1) ** 2 + theta_rand_value[1]) * \
+                   (theta_rand_value[0] + 2 - theta_rand_value[1]) \
+                   - theta_rand_value[0] * x[0] - theta_rand_value[1] * x[1] - x[2]  # values in abs
+        g_grad = np.array([-theta_rand_value[0], -theta_rand_value[1], - 1])
         return g_grad, g_values
 
     def csa_algorithm(self):
@@ -129,7 +112,7 @@ class CSA:
 
         gamma = np.zeros(num_iteration + 1)
         eta = np.zeros(num_iteration + 1)
-
+        count = 0
         index_set = []
         for k in range(num_iteration):
             gamma[k] = self.c_gamma * self.d_x / (np.sqrt(k + 1) * (self.l_f + self.l_g_x))
@@ -154,6 +137,10 @@ class CSA:
             else:
                 self.obj_weighted_sum[k] = float('inf')
                 print('Empty set_B is found in iteration:', k)
+
+            count += 1
+            if count == 2000:
+                aa = 1
 
             # if self.plot_setB is True:
             self.accumulate_num_of_bb[k] = len(index_set)
@@ -241,18 +228,18 @@ def main():
     np.random.seed(1)
     parse_input = {
         'epsilon': 0.01,
-        'num_iterations': 10000,
-        'c_gamma': 0.085,
-        'c_eta': 0.001,
-        'x0': np.array([1, 1, 1, 1])  # according to the paper, the third one is eta, whose maximum is 5.389 if x=(1,1)
+        'num_iterations': 5000,
+        'c_gamma': 0.05,
+        'c_eta': 0.0001,
+        'x0': np.array([1, 1, 1])  # according to the paper, the third one is eta, whose maximum is 5.389 if x=(1,1)
     }
     csa = CSA(parse_input)
 
     # plt.rc('text', usetex=True)
     # plt.rc('font', family='serif')
 
-    csa.run_adaptive_sampling(10, 50)
-    # csa.run_fixed_sampling(1000)
+    # csa.run_adaptive_sampling(100, 500)
+    csa.run_fixed_sampling(500)
     csa.plot_x_last_iterate()
     csa.plot_x_bar()
     plt.show()
