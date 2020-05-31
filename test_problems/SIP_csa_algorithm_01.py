@@ -36,6 +36,8 @@ class CSA:
         # ========= Delta region ========= #
         self.delta_lb = -1
         self.delta_ub = 1
+        mcmc_range_factor = parse_input['mcmc_range_factor'] if 'mcmc_range_factor' in parse_input else 2
+        self.adaptive_sampling_length = (self.delta_ub - self.delta_lb) / mcmc_range_factor
 
         # ========= calculate the parameters ========= #
         self.l_g_x = 1  # given any delta, L-constant of g
@@ -75,18 +77,25 @@ class CSA:
         epsilon_k = (self.l_f + self.l_g_x) * self.d_x / np.sqrt(k + 1)
         # epsilon_k = 1 / np.sqrt(k + 1)
         kappa = np.minimum(np.minimum(epsilon_k / (2 * self.parameter_c), (epsilon_k / (2 * self.delta_dim))**2), 1)
-        theta_sample = np.zeros([iteration])
-        theta_rand = np.random.uniform(self.delta_lb, self.delta_ub, iteration)
-        theta_sample[0] = theta_rand[0].copy()
+        theta_rand = np.random.uniform(-0.5, 0.5, iteration)
+        theta_samples = theta_rand.copy()
+        theta_samples[0] = (self.delta_ub - self.delta_lb) / 2 + theta_rand[0] * (self.delta_ub - self.delta_lb)
         t = 1
         saved_g_values = np.zeros([iteration])
         saved_g_grad = np.zeros([self.x_dim, iteration])
+        saved_g_grad[:, 0], saved_g_values[0] = self.calculate_g_grad_and_values(x, theta_samples[0])
+        g_values_temp = saved_g_values[0]
+        theta_loc = theta_samples[0]
         while t < iteration:
-            saved_g_grad[:, t], saved_g_values[t] = self.calculate_g_grad_and_values(x, theta_rand[t])
-            alpha = np.minimum(1, np.exp((saved_g_values[t]) / kappa))
+            theta_samples[t] = np.minimum(np.maximum(
+                theta_loc + theta_rand[t] * self.adaptive_sampling_length,
+                self.delta_lb), self.delta_ub)
+            saved_g_grad[:, t], saved_g_values[t] = self.calculate_g_grad_and_values(x, theta_samples[t])
+            alpha = np.minimum(1, np.exp((saved_g_values[t] - g_values_temp) / kappa))
             u = np.random.uniform(0, 1)
             sign_u = np.sign(np.sign(u - alpha) + 1)
-            theta_sample[t] = (theta_rand[t].T * (1 - sign_u) + theta_sample[t - 1].T * sign_u).T
+            g_values_temp = saved_g_values[t] * (1 - sign_u) + g_values_temp * sign_u
+            theta_loc = theta_samples[t] * (1 - sign_u) + theta_loc * sign_u
             t += 1
         max_g_values = saved_g_values[-selected_samples:].max()
         loc_max = np.where(saved_g_values[-selected_samples:] == max_g_values)[0][0]
@@ -218,17 +227,18 @@ def main():
     parse_input = {
         'epsilon': 0.001,
         'num_iterations': 1000,
-        'c_gamma': 0.05,
-        'c_eta': 0.001,
-        'x0': np.array([2, 0, 0])
+        'c_gamma': 0.03,  # 0.03,   0.03, 0.05
+        'c_eta': 0.0005,  # 0.0005, 0.0005, 0.001
+        'x0': np.array([1,]),
+        'mcmc_range_factor': 4
     }
     csa = CSA(parse_input)
 
     # plt.rc('text', usetex=True)
     # plt.rc('font', family='serif')
 
-    csa.run_adaptive_sampling(10, 50)
-    # csa.run_fixed_sampling(1000)
+    # csa.run_adaptive_sampling(10, 50)
+    csa.run_fixed_sampling(1000)
     csa.plot_x_last_iterate()
     csa.plot_x_bar()
     plt.show()

@@ -31,7 +31,8 @@ class CSA:
         # ========= Delta region ========= #
         self.delta_lb = 0
         self.delta_ub = 2
-        self.adaptive_sampling_length = (self.delta_ub - self.delta_lb) / 2
+        mcmc_range_factor = parse_input['mcmc_range_factor'] if 'mcmc_range_factor' in parse_input else 2
+        self.adaptive_sampling_length = (self.delta_ub - self.delta_lb) / mcmc_range_factor
 
         # ========= calculate the parameters ========= #
         self.l_g_x = np.exp(2)  # given any delta, L-constant of g
@@ -237,18 +238,19 @@ class CSA:
 def main():
     np.random.seed(1)
     parse_input = {
-        'epsilon': 0.01,
-        'num_iterations': 5000,
-        'c_gamma': 0.05,
-        'c_eta': 0.0008,  # 0.0005 for fixed sampling; 0.001 for adaptive sampling
-        'x0': np.array([1, 1, 1.5])  # OTE1, the third one is eta, whose maximum is 5.389 if x=(1,1)
+        'epsilon': 0.001,
+        'num_iterations': 1000,
+        'c_gamma': 0.065,
+        'c_eta': 0.001,  # 0.0005 for fixed sampling; 0.001 for adaptive sampling
+        'x0': np.array([1, 1, 3]),  # OTE1, the third one is eta, whose maximum is 5.389 if x=(1,1)
+        'mcmc_range_factor': 1
     }
     csa = CSA(parse_input)
 
     # plt.rc('text', usetex=True)
     # plt.rc('font', family='serif')
 
-    # csa.run_adaptive_sampling(10, 50)
+    # csa.run_adaptive_sampling(30, 50)
     csa.run_fixed_sampling(1000)
     csa.plot_x_last_iterate()
     csa.plot_x_bar()
