@@ -71,29 +71,32 @@ class CSA:
         epsilon_k = (self.l_f + self.l_g_x) * self.d_x / np.sqrt(k + 1)
         # epsilon_k = 1 / np.sqrt(k + 1)
         kappa = np.minimum(np.minimum(epsilon_k / (2 * self.parameter_c), (epsilon_k / (2 * self.delta_dim))**2), 1)
-        theta_rand = np.random.uniform(-0.5, 0.5, iteration)
+        theta_rand = np.random.normal(0, 1, iteration)
         theta_samples = theta_rand.copy()
-        theta_samples[0] = (self.delta_ub - self.delta_lb) / 2 + theta_rand[0] * (self.delta_ub - self.delta_lb)
+        theta_samples[0] = np.random.uniform(self.delta_lb, self.delta_ub)
         t = 1
-        saved_g_values = np.zeros([iteration])
-        saved_g_grad = np.zeros([self.x_dim, iteration])
-        saved_g_grad[:, 0], saved_g_values[0] = self.calculate_g_grad_and_values(x, theta_samples[0])
-        g_values_temp = saved_g_values[0]
+        g_values_temp = np.zeros([iteration])
+        g_grad_temp = np.zeros([self.x_dim, iteration])
+        g_grad_temp[:, 0], g_values_temp[0] = self.calculate_g_grad_and_values(x, theta_samples[0])
+        g_value = g_values_temp[0]
         theta_loc = theta_samples[0]
+        u = np.random.uniform(0, 1, iteration + 1)
+        saved_g_grad, saved_g_values = [g_grad_temp[:, 0]], [g_values_temp[0]]
         while t < iteration:
             theta_samples[t] = np.minimum(np.maximum(
-                theta_loc + theta_rand[t] * self.adaptive_sampling_length,
+                theta_loc + theta_rand[t],
                 self.delta_lb), self.delta_ub)
-            saved_g_grad[:, t], saved_g_values[t] = self.calculate_g_grad_and_values(x, theta_samples[t])
-            alpha = np.minimum(1, np.exp((saved_g_values[t] - g_values_temp) / kappa))
-            u = np.random.uniform(0, 1)
-            sign_u = np.sign(np.sign(u - alpha) + 1)
-            g_values_temp = saved_g_values[t] * (1 - sign_u) + g_values_temp * sign_u
-            theta_loc = theta_samples[t] * (1 - sign_u) + theta_loc * sign_u
+            g_grad_temp[:, t], g_values_temp[t] = self.calculate_g_grad_and_values(x, theta_samples[t])
+            alpha = np.minimum(1, np.exp((g_values_temp[t] - g_value) / kappa))
+            if u[t] < alpha:
+                g_value = g_values_temp[t]
+                theta_loc = theta_samples[t]
+                saved_g_values.append(g_values_temp[t])
+                saved_g_grad.append(g_grad_temp[:, t])
             t += 1
-        max_g_values = saved_g_values[-selected_samples:].max()
+        max_g_values = max(saved_g_values[-selected_samples:])
         loc_max = np.where(saved_g_values[-selected_samples:] == max_g_values)[0][0]
-        return saved_g_grad[:, -selected_samples:][:, loc_max], max_g_values
+        return saved_g_grad[loc_max], max_g_values
 
     def calculate_g_grad_and_values_arr(self, x, theta_rand_value):
         values_inside_abs = np.sin(theta_rand_value) - (x[0] + x[1] * theta_rand_value
@@ -240,18 +243,18 @@ class CSA:
 def main():
     np.random.seed(1)
     parse_input = {
-        'epsilon': 0.01,
-        'num_iterations': 10000,
+        'epsilon': 0.001,
+        'num_iterations': 5000,
         'c_gamma': 0.085,
         'c_eta': 0.001,
-        'x0': np.array([1, 1, 1, 1])  # according to the paper, the third one is eta, whose maximum is 5.389 if x=(1,1)
+        'x0': np.array([1, 1, 1, 0])  # according to the paper, the third one is eta, whose maximum is 5.389 if x=(1,1)
     }
     csa = CSA(parse_input)
 
     # plt.rc('text', usetex=True)
     # plt.rc('font', family='serif')
 
-    csa.run_adaptive_sampling(10, 50)
+    csa.run_adaptive_sampling(50, 50)
     # csa.run_fixed_sampling(1000)
     csa.plot_x_last_iterate()
     csa.plot_x_bar()
