@@ -38,7 +38,6 @@ class CSA:
         self.d_x = (self.x_ub - self.x_lb) * np.sqrt(2)  # diameter of the domain x
         self.d_delta = 4
         self.r_delta = 1
-        self.c_gamma, self.c_eta = 1, 1  # to adjust gamma/eta in simulations
         self.parameter_c = self.l_g_delta * (self.r_delta + self.d_delta) - np.log(1)
 
         # output setup #
@@ -77,29 +76,39 @@ class CSA:
         epsilon_k = (self.l_f + self.l_g_x) * self.d_x / np.sqrt(k + 1)
         # epsilon_k = 1 / np.sqrt(k + 1)
         kappa = np.minimum(np.minimum(epsilon_k / (2 * self.parameter_c), (epsilon_k / (2 * self.delta_dim))**2), 1)
-        theta_rand = np.zeros([4, 2, iteration])
-        theta_sample = np.zeros([4, 2, iteration])
+        theta_rand = np.random.normal(0, 0.095, [4, 2, iteration])
+        theta_samples = np.zeros([4, 2, iteration])
         for i in range(4):
-            theta_rand[i, :, :] = self.uniform_ball(1, iteration)
-        theta_sample[:, :, 0] = theta_rand[:, :, 0].copy()
+            theta_rand[i, :, 0] = self.uniform_ball(1, 1).T[0]
+        theta_samples[:, :, 0] = theta_rand[:, :, 0].copy()
         t = 1
+        g_values_temp = np.zeros([iteration])
+        g_grad_temp = np.zeros([self.x_dim, iteration])
+        g_grad_temp[:, 0], g_values_temp[0] = self.calculate_g_grad_and_values(x, theta_samples[:, :, 0])
+        g_value = g_values_temp[0]
+        theta_loc = theta_samples[:, :, 0]
+        u = np.random.uniform(0, 1, iteration + 1)
+        saved_g_values = [g_values_temp[0]]
+        saved_g_grad = [g_grad_temp[:, 0]]
         while t < iteration:
-            alpha = np.minimum(1, np.exp((np.dot(self.coeff * (theta_rand[:, :, t]
-                                                        - theta_sample[:, :, t - 1]), x.T)) / kappa))
-            u = np.random.uniform(0, 1, (4, ))
-            sign_u = np.sign(np.sign(u - alpha) + 1)
-            theta_sample[:, :, t] = (theta_rand[:, :, t].T * (1 - sign_u) + theta_sample[:, :, t - 1].T * sign_u).T
+            theta_samples[:, :, t] = self.mapping_delta_to_feasible_region(theta_loc + theta_rand[:, :, t])
+            g_grad_temp[:, t], g_values_temp[t] = self.calculate_g_grad_and_values(x, theta_samples[:, :, t])
+            alpha = np.minimum(1, np.exp((g_values_temp[t] - g_value) / kappa))
+            if u[t] < alpha:
+                g_value = g_values_temp[t]
+                theta_loc = theta_samples[:, :, t]
+                saved_g_values.append(g_values_temp[t])
+                saved_g_grad.append(g_grad_temp[:, t])
             t += 1
-        temp_values, mat_big_a = np.zeros([4, selected_samples + 1]), np.zeros([4, 2])
-        temp_values[:, 0], max_id = -10e9 * np.ones(4), 0
-        temp0 = -10e9
-        for i in range(selected_samples):
-            temp_values[:, i + 1] = np.dot(self.mat_a + self.coeff * theta_sample[:, :, iteration - i - 1], x.T) - self.bb
-            if temp_values[:, i + 1].max() > temp0:
-                max_id = np.where(temp_values[:, i + 1] == temp_values[:, i + 1].max())[0][0]
-                mat_big_a = self.mat_a[max_id, :] + self.coeff * theta_sample[max_id, :, iteration - i - 1]
-                temp0 = temp_values[:, i + 1].max()
-        return mat_big_a, temp0
+        max_g_values = max(saved_g_values[-selected_samples:])
+        loc_max = np.where(saved_g_values[-selected_samples:] == max_g_values)[0][0]
+        return saved_g_grad[loc_max], max_g_values
+
+    def calculate_g_grad_and_values(self, x, theta_rand):
+        g_values = np.dot(self.mat_a + 0.2 * theta_rand, x) - self.bb
+        loc = np.where(g_values == g_values.max())[0][0]
+        g_grad = self.mat_a[loc] + 0.2 * theta_rand[loc]
+        return g_grad, g_values.max()
 
     def csa_algorithm(self):
         num_iteration = self.num_iterations
@@ -150,11 +159,15 @@ class CSA:
         obj = np.dot(self.grad_objective, x_bar)
         return x_bar, obj
 
-    def plot_constraint_violation(self, out_of_samples=10000):
+    def plot_constraint_violation(self, input_result=[], out_of_samples=10000):
+        if len(input_result) == 0:
+            arr_x_bar_with_k = self.arr_x_bar_with_k
+        else:
+            arr_x_bar_with_k = input_result
         self.fixed_num_samples = out_of_samples
         arr_violation = np.zeros(self.num_iterations + 1)
         for k in range(self.num_iterations + 1):
-            grad_a_k, value_a_k = self.fixed_constraints_sampling(self.arr_x_bar_with_k[:, k])
+            grad_a_k, value_a_k = self.fixed_constraints_sampling(arr_x_bar_with_k[:, k])
             arr_violation[k] = value_a_k
         plt.semilogx(range(self.plot_len), arr_violation[0:self.plot_len],
                      color=self.plot_linecolor, linestyle=self.plot_linestyle, linewidth=self.plot_linewid)
@@ -163,12 +176,20 @@ class CSA:
         plt.plot(range(self.plot_len), self.accumulate_num_of_bb[0:self.plot_len])
         return
 
-    def plot_x_last_iterate(self):
-        plt.semilogx(range(self.plot_len), -np.sum(self.x_sol[:, 0:self.plot_len], axis=0),
+    def plot_x_last_iterate(self, input_obj=[]):
+        if len(input_obj) == 0:
+            x_sol = self.x_sol
+        else:
+            x_sol = input_obj
+        plt.semilogx(range(self.plot_len), -np.sum(x_sol[:, 0:self.plot_len], axis=0),
                      color=self.plot_linecolor, linestyle=self.plot_linestyle, linewidth=self.plot_linewid)
 
-    def plot_x_bar(self):
-        plt.semilogx(range(self.plot_len), self.obj_weighted_sum[0:self.plot_len],
+    def plot_x_bar(self, input_obj=[]):
+        if len(input_obj) == 0:
+            obj_weighted_sum = self.obj_weighted_sum
+        else:
+            obj_weighted_sum = input_obj
+        plt.semilogx(range(self.plot_len), obj_weighted_sum[0:self.plot_len],
                      color=self.plot_linecolor, linestyle=self.plot_linestyle, linewidth=self.plot_linewid)
 
     def run_fixed_sampling(self, fixed_num_samples=1000):
@@ -202,6 +223,11 @@ class CSA:
         return x
 
     @staticmethod
+    def mapping_delta_to_feasible_region(delta):
+        delta = delta * np.tile(1 / np.maximum(np.sqrt(delta[:, 0] ** 2 + delta[:, 1] ** 2), 1), [2, 1]).T
+        return delta
+
+    @staticmethod
     def other_method(dim=2):
         size = 1000
         x = np.random.normal(size=(size, dim))
@@ -229,11 +255,15 @@ def main():
     }
     csa = CSA(parse_input)
 
-    plt.rc('text', usetex=True)
-    plt.rc('font', family='serif')
+    # plt.rc('text', usetex=True)
+    # plt.rc('font', family='serif')
 
-    csa.c_gamma, csa.c_eta = 0.35, 0.001
-    csa.run_adaptive_sampling(10, 50)
+    # csa.c_gamma, csa.c_eta = 0.35, 0.003
+    adaptive_sample_size = 50
+    csa.run_adaptive_sampling(adaptive_sample_size, adaptive_sample_size)
+    # csa.run_fixed_sampling(1000)
+    csa.plot_x_last_iterate()
+    csa.plot_x_bar()
     plt.show()
 
 
